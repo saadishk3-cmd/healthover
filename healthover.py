@@ -89,11 +89,11 @@ if st.button("Fetch Data"):
                 # Safely get subscriber count
                 subs = channel.get("statistics", {}).get("subscriberCount")
                 if subs is None:
-                    continue  # Skip hidden subscriber count
+                    continue  # Skip hidden subscriber counts
 
                 subs = int(subs)
-                if subs >= 3000:
-                    continue  # Skip big channels
+                if subs >= 10000:
+                    continue  # Skip big channels (>10k)
 
                 title = video["snippet"].get("title", "N/A")
                 description = video["snippet"].get("description", "")[:200]
@@ -112,7 +112,7 @@ if st.button("Fetch Data"):
 
         # Display results
         if all_results:
-            st.success(f"✅ Found {len(all_results)} small channels (<3,000 subs)!")
+            st.success(f"✅ Found {len(all_results)} small channels (<10,000 subs)!")
             for result in all_results:
                 st.markdown(
                     f"**🎬 Title:** {result['Title']}  \n"
@@ -124,7 +124,7 @@ if st.button("Fetch Data"):
                 )
                 st.write("---")
         else:
-            st.warning("⚠️ No small channels (<3,000 subs) found.")
+            st.warning("⚠️ No small channels (<10,000 subs) found.")
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
