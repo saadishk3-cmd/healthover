@@ -29,12 +29,15 @@ keywords = [
 # Fetch Data Button
 if st.button("Fetch Data"):
     try:
+        # Calculate date range
         start_date = (datetime.utcnow() - timedelta(days=int(days))).isoformat("T") + "Z"
         all_results = []
 
+        # Iterate over the list of keywords
         for keyword in keywords:
-            st.write(f"🔍 Searching for keyword: **{keyword}**")
+            st.write(f"🔍 Searching for keyword: {keyword}")
 
+            # Define search parameters
             search_params = {
                 "part": "snippet",
                 "q": keyword,
@@ -45,6 +48,7 @@ if st.button("Fetch Data"):
                 "key": API_KEY,
             }
 
+            # Fetch video data
             response = requests.get(YOUTUBE_SEARCH_URL, params=search_params)
             data = response.json()
 
@@ -57,62 +61,55 @@ if st.button("Fetch Data"):
             channel_ids = [v["snippet"]["channelId"] for v in videos if "snippet" in v and "channelId" in v["snippet"]]
 
             if not video_ids or not channel_ids:
+                st.warning(f"Skipping keyword: {keyword} due to missing video/channel data.")
                 continue
 
-            # Fetch video stats
-            stats_response = requests.get(YOUTUBE_VIDEO_URL, params={
-                "part": "statistics",
-                "id": ",".join(video_ids),
-                "key": API_KEY
-            })
+            # Fetch video statistics
+            stats_params = {"part": "statistics", "id": ",".join(video_ids), "key": API_KEY}
+            stats_response = requests.get(YOUTUBE_VIDEO_URL, params=stats_params)
             stats_data = stats_response.json()
 
-            # Fetch channel stats
-            channel_response = requests.get(YOUTUBE_CHANNEL_URL, params={
-                "part": "statistics,snippet",
-                "id": ",".join(channel_ids),
-                "key": API_KEY
-            })
+            # Fetch channel statistics
+            channel_params = {"part": "statistics,snippet", "id": ",".join(channel_ids), "key": API_KEY}
+            channel_response = requests.get(YOUTUBE_CHANNEL_URL, params=channel_params)
             channel_data = channel_response.json()
 
             if "items" not in stats_data or "items" not in channel_data:
                 continue
 
-            video_stats = stats_data["items"]
-            channel_stats = {ch["id"]: ch for ch in channel_data["items"]}
+            stats = stats_data["items"]
+            channels = {ch["id"]: ch for ch in channel_data["items"]}
 
-            # Match each video to its stats and channel
-            for video, stat in zip(videos, video_stats):
+            # Collect results
+            for video, stat in zip(videos, stats):
                 channel_id = video["snippet"]["channelId"]
-                channel = channel_stats.get(channel_id, {})
-
-                # Safely get subscriber count
-                subs = channel.get("statistics", {}).get("subscriberCount")
-                if subs is None:
-                    continue  # Skip hidden subscriber counts
-
-                subs = int(subs)
-                if subs >= 10000:
-                    continue  # Skip big channels (>10k)
-
+                channel = channels.get(channel_id, {})
                 title = video["snippet"].get("title", "N/A")
                 description = video["snippet"].get("description", "")[:200]
                 video_url = f"https://www.youtube.com/watch?v={video['id']['videoId']}"
                 views = int(stat["statistics"].get("viewCount", 0))
-                channel_title = channel.get("snippet", {}).get("title", "Unknown Channel")
 
-                all_results.append({
-                    "Title": title,
-                    "Description": description,
-                    "URL": video_url,
-                    "Views": views,
-                    "Subscribers": subs,
-                    "Channel": channel_title
-                })
+                # Safely get subscriber count (skip hidden)
+                subs_str = channel.get("statistics", {}).get("subscriberCount")
+                if not subs_str:
+                    continue  # Skip if subs are hidden
+
+                subs = int(subs_str)
+
+                # ✅ Only include channels with fewer than 10,000 subscribers
+                if subs < 10000:
+                    all_results.append({
+                        "Title": title,
+                        "Description": description,
+                        "URL": video_url,
+                        "Views": views,
+                        "Subscribers": subs,
+                        "Channel": channel.get("snippet", {}).get("title", "Unknown Channel")
+                    })
 
         # Display results
         if all_results:
-            st.success(f"✅ Found {len(all_results)} small channels (<10,000 subs)!")
+            st.success(f"✅ Found {len(all_results)} results (channels under 10,000 subscribers)!")
             for result in all_results:
                 st.markdown(
                     f"**🎬 Title:** {result['Title']}  \n"
@@ -127,4 +124,4 @@ if st.button("Fetch Data"):
             st.warning("⚠️ No small channels (<10,000 subs) found.")
 
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"❌ An error occurred: {e}")
